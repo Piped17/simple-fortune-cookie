@@ -7,7 +7,7 @@ on:
 
 env:
   docker_username: piped17
-  docker_password: ${{ secrets.GITHUB_TOKEN }}
+  docker_password: ${{ secrets.DOCKER_PASSWORD }}
   GIT_COMMIT: ${{ github.sha }}
 
 jobs:
