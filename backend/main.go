@@ -1,27 +1,41 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"regexp"
 	"sync"
-	"github.com/boj/redistore"
-    "log"
-    "os"
+
+	"github.com/go-redis/redis/v8"
 )
 
+var ctx = context.Background()
 
-func initSessionStore() *redistore.RediStore {
-    store, err := redistore.NewRediStore(10, "tcp", os.Getenv("REDIS_ADDR"), "", []byte("secret-key"))
-    if err != nil {
-        log.Fatalf("Failed to create Redis store: %v", err)
-    }
-    return store
+// Initialize Redis
+func initRedis() *redis.Client {
+	addr := os.Getenv("REDIS_ADDR")
+	if addr == "" {
+		addr = "redis:6379" // fallback for local testing
+	}
+	rdb := redis.NewClient(&redis.Options{
+		Addr: addr,
+	})
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		fmt.Println("Redis not reachable, using in-memory only:", err)
+		return nil
+	}
+	fmt.Println("Connected to Redis at", addr)
+	return rdb
 }
 
+var redisClient = initRedis()
+var usingRedis = redisClient != nil
 
+// Regex patterns
 var (
 	listFortuneRe   = regexp.MustCompile(`^/fortunes[/]*$`)
 	getFortuneRe    = regexp.MustCompile(`^/fortunes[/](\d+)$`)
@@ -29,16 +43,19 @@ var (
 	createFortuneRe = regexp.MustCompile(`^/fortunes[/]*$`)
 )
 
+// Fortune struct
 type fortune struct {
-	ID      string `json:"id" redis:"id"`
-	Message string `json:"message" redis:"message"`
+	ID      string `json:"id"`
+	Message string `json:"message"`
 }
 
+// Datastore with in-memory map and lock
 type datastore struct {
 	m map[string]fortune
 	*sync.RWMutex
 }
 
+// Default in-memory fortunes
 var datastoreDefault = datastore{m: map[string]fortune{
 	"1": {ID: "1", Message: "A new voyage will fill your life with untold memories."},
 	"2": {ID: "2", Message: "The measure of time to your next goal is the measure of your discipline."},
@@ -46,6 +63,7 @@ var datastoreDefault = datastore{m: map[string]fortune{
 	"4": {ID: "4", Message: "It ain't over till it's EOF."},
 }, RWMutex: &sync.RWMutex{}}
 
+// Fortune handler
 type fortuneHandler struct {
 	store *datastore
 }
@@ -55,19 +73,14 @@ func (h *fortuneHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && listFortuneRe.MatchString(r.URL.Path):
 		h.List(w, r)
-		return
 	case r.Method == http.MethodGet && getFortuneRe.MatchString(r.URL.Path):
 		h.Get(w, r)
-		return
 	case r.Method == http.MethodGet && randomFortuneRe.MatchString(r.URL.Path):
 		h.Random(w, r)
-		return
 	case r.Method == http.MethodPost && createFortuneRe.MatchString(r.URL.Path):
 		h.Create(w, r)
-		return
 	default:
 		notFound(w, r)
-		return
 	}
 }
 
@@ -112,24 +125,19 @@ func (h *fortuneHandler) Get(w http.ResponseWriter, r *http.Request) {
 		notFound(w, r)
 		return
 	}
+	key := matches[1]
 
 	if usingRedis {
-		key := matches[1]
-		val, err := dbLink.Do("hget", "fortunes", key)
-		if err != nil {
-			fmt.Println("redis hget failed", err.Error())
-		} else {
-			if val != nil {
-				msg := fmt.Sprintf("%s", val.([]byte))
-				h.store.Lock()
-				h.store.m[key] = fortune{ID: key, Message: msg}
-				h.store.Unlock()
-			}
+		val, err := redisClient.HGet(ctx, "fortunes", key).Result()
+		if err == nil {
+			h.store.Lock()
+			h.store.m[key] = fortune{ID: key, Message: val}
+			h.store.Unlock()
 		}
 	}
 
 	h.store.RLock()
-	u, ok := h.store.m[matches[1]]
+	u, ok := h.store.m[key]
 	h.store.RUnlock()
 
 	if !ok {
@@ -152,14 +160,15 @@ func (h *fortuneHandler) Create(w http.ResponseWriter, r *http.Request) {
 		internalServerError(w, r)
 		return
 	}
+
 	h.store.Lock()
 	h.store.m[u.ID] = u
 	h.store.Unlock()
 
 	if usingRedis {
-		_, err := dbLink.Do("hset", "fortunes", u.ID, u.Message)
+		err := redisClient.HSet(ctx, "fortunes", u.ID, u.Message).Err()
 		if err != nil {
-			fmt.Println("redis hset failed", err.Error())
+			fmt.Println("Redis HSet failed:", err)
 		}
 	}
 
@@ -191,5 +200,5 @@ func main() {
 	mux.Handle("/fortunes/", fortuneH)
 
 	err := http.ListenAndServe(":9000", mux)
-    fmt.Printf("%v", err)
+	fmt.Printf("%v", err)
 }
