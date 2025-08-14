@@ -2,55 +2,57 @@ package main
 
 import (
 	"fmt"
-	"github.com/gomodule/redigo/redis"
 	"log"
-	"sync"
 	"time"
-	"os"
+
+	"github.com/gomodule/redigo/redis"
 )
 
 var dbLink redis.Conn
 var usingRedis = false
 
+// getEnv is already defined in main.go, so no need to redeclare it here
+
 func init() {
-	// Check if REDIS_DNS environment variable is set
-	if os.Getenv("REDIS_DNS") == "" {
-		fmt.Println("redis config not set")
-		return
-	}
+	redisHost := getEnv("REDIS_DNS", "redis") // default to "redis" for Docker Compose
+	redisPort := "6379"
+
+	// Try connecting to Redis with retries
 	var err error
 	for i := 0; i < 5; i++ {
-		dbLink, err = redis.Dial("tcp", fmt.Sprintf("%s:6379", getEnv("REDIS_DNS", "localhost")))
+		dbLink, err = redis.Dial("tcp", fmt.Sprintf("%s:%s", redisHost, redisPort))
 		if err == nil {
 			usingRedis = true
+			fmt.Println("Connected to Redis at", redisHost)
 			break
 		}
-		log.Printf("Attempt %d: redis connection failed: %s", i+1, err)
+		log.Printf("Attempt %d: Redis connection failed: %s", i+1, err)
 		time.Sleep(2 * time.Second)
 	}
 
 	if !usingRedis {
-		log.Println("Failed to connect to redis after 5 attempts")
+		log.Println("Failed to connect to Redis after 5 attempts, using in-memory only")
 		return
 	}
 
-	resKeys, err := redis.Values(dbLink.Do("hkeys", "fortunes"))
+	// Load fortunes from Redis into memory
+	resKeys, err := redis.Strings(dbLink.Do("HKEYS", "fortunes"))
 	if err != nil {
-		fmt.Println("redis hkeys failed", err.Error())
+		log.Println("Redis HKEYS failed:", err)
 		return
 	}
 
-	datastoreDefault = datastore{m: map[string]fortune{}, RWMutex: &sync.RWMutex{}}
-	fmt.Printf("*** loading redis fortunes:\n")
+	fmt.Println("*** Loading Redis fortunes:")
 	for _, key := range resKeys {
-		val, err := dbLink.Do("hget", "fortunes", key)
+		val, err := redis.String(dbLink.Do("HGET", "fortunes", key))
 		if err != nil {
-			fmt.Println("redis hget failed", err.Error())
-		} else {
-			idx := fmt.Sprintf("%s", key.([]byte))
-			msg := fmt.Sprintf("%s", val.([]byte))
-			datastoreDefault.m[idx] = fortune{ID: idx, Message: msg}
-			fmt.Printf("%s => %s\n", key, val)
+			log.Println("Redis HGET failed for key", key, ":", err)
+			continue
 		}
+		// Store in the existing datastoreDefault
+		datastoreDefault.Lock()
+		datastoreDefault.m[key] = fortune{ID: key, Message: val}
+		datastoreDefault.Unlock()
+		fmt.Printf("%s => %s\n", key, val)
 	}
 }
