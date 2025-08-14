@@ -12,6 +12,12 @@ services:
       context: ./frontend
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/livez"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     environment:
       BACKEND_DNS: backend
       BACKEND_PORT: 9000
