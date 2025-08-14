@@ -14,6 +14,12 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: frontend:latest
+        image: piped17/frontend:latest
+        env:
+          - name: BACKEND_DNS
+            value: "backend"
+          - name: BACKEND_PORT
+            value: "9000"
+
         ports:
-        - containerPort: 9000  # adjust if your frontend uses a different port
+        - containerPort: 8080  # adjust if your frontend uses a different port

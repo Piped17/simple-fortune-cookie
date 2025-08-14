@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: backend
-        image: backend:latest
+        image: piped17/backend:latest
         ports:
-        - containerPort: 8080  # adjust if your backend uses a different port
+        - containerPort: 9000  # adjust if your backend uses a different port
