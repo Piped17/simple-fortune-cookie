@@ -89,6 +89,6 @@ jobs:
       - name: Build test version with docker up
         run: |
           docker compose up -d
-          curl http://localhost:8080/healthz
+          curl http://localhost:8080/
       - name: Clean up docker build
         run: docker compose down
