@@ -64,10 +64,10 @@ jobs:
               path: .
         - name: Build and Push Frontend Docker Image
           run: |
-            docker build -t ${{ env.docker_username }}/frontend:${GIT_COMMIT} ./frontend
-            docker push ${{ env.docker_username }}/frontend:${GIT_COMMIT}
+            docker build -t ${{ env.docker_username }}/frontend:latest ./frontend
+            docker push ${{ env.docker_username }}/frontend:latest
         - name: Build and Push backend Docker Image
           run: |
-            docker build -t ${{ env.docker_username }}/backend:${GIT_COMMIT} ./backend
-            docker push ${{ env.docker_username }}/backend:${GIT_COMMIT}
+            docker build -t ${{ env.docker_username }}/backend:latest ./backend
+            docker push ${{ env.docker_username }}/backend:latest
 
