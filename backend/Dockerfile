@@ -16,5 +16,6 @@ FROM gcr.io/distroless/base-debian12
 
 WORKDIR /app
 COPY --from=builder /app/backend /app/backend
+EXPOSE 9000
 
 CMD ["./backend"]
