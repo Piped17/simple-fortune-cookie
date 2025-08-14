@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -13,28 +12,7 @@ import (
 var dbLink redis.Conn
 var usingRedis = false
 
-// fortune struct and datastore from your previous code
-type fortune struct {
-	ID      string `json:"id"`
-	Message string `json:"message"`
-}
-
-type datastore struct {
-	m map[string]fortune
-	*sync.RWMutex
-}
-
-var datastoreDefault = datastore{
-	m:       map[string]fortune{},
-	RWMutex: &sync.RWMutex{},
-}
-
-func getEnv(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return fallback
-}
+// getEnv is already defined in main.go, so no need to redeclare it here
 
 func init() {
 	redisHost := getEnv("REDIS_DNS", "redis") // default to "redis" for Docker Compose
@@ -66,14 +44,16 @@ func init() {
 	}
 
 	fmt.Println("*** Loading Redis fortunes:")
-	datastoreDefault = datastore{m: map[string]fortune{}, RWMutex: &sync.RWMutex{}}
 	for _, key := range resKeys {
 		val, err := redis.String(dbLink.Do("HGET", "fortunes", key))
 		if err != nil {
 			log.Println("Redis HGET failed for key", key, ":", err)
 			continue
 		}
+		// Store in the existing datastoreDefault
+		datastoreDefault.Lock()
 		datastoreDefault.m[key] = fortune{ID: key, Message: val}
+		datastoreDefault.Unlock()
 		fmt.Printf("%s => %s\n", key, val)
 	}
 }
