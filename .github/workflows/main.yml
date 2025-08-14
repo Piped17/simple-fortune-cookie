@@ -80,6 +80,5 @@ jobs:
       - name: Write kubeconfig
         run: echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
       - name: Deploy to Kubernetes
-        run: |
-          kubectl --kubeconfig kubeconfig apply -f ./k8s
+        run:  kubectl --kubeconfig kubeconfig apply -f /k8s
 
