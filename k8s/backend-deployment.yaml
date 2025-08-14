@@ -16,4 +16,7 @@ spec:
       - name: backend
         image: piped17/backend:latest
         ports:
-        - containerPort: 9000  # adjust if your backend uses a different port
+        - containerPort: 9000  
+        env:   
+        - name: REDIS_ADDR
+          value: "redis:6379"

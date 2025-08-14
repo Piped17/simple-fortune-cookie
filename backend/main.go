@@ -7,7 +7,20 @@ import (
 	"net/http"
 	"regexp"
 	"sync"
+	"github.com/boj/redistore"
+    "log"
+    "os"
 )
+
+
+func initSessionStore() *redistore.RediStore {
+    store, err := redistore.NewRediStore(10, "tcp", os.Getenv("REDIS_ADDR"), "", []byte("secret-key"))
+    if err != nil {
+        log.Fatalf("Failed to create Redis store: %v", err)
+    }
+    return store
+}
+
 
 var (
 	listFortuneRe   = regexp.MustCompile(`^/fortunes[/]*$`)
