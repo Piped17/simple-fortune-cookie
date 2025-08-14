@@ -1,9 +1,8 @@
-name: Main workflow
+name: Dev workflow
 on: 
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+     branches:
+      - "dev/**"
 
 env:
   docker_username: piped17
@@ -70,4 +69,3 @@ jobs:
           run: |
             docker build -t ${{ env.docker_username }}/backend:${GIT_COMMIT} ./backend
             docker push ${{ env.docker_username }}/backend:${GIT_COMMIT}
-
