@@ -44,5 +44,24 @@ jobs:
           name: code
           path: .
           include-hidden-files: true
-
+          
+  Docker-image:
+      runs-on: ubuntu-latest
+      needs: [Build]
+      permissions: 
+        packages: write
+      steps:
+        - name: download code
+          uses: actions/download-artifact@v4
+          with:
+              name: code
+              path: .
+        - name: Build and Push Frontend Docker Image
+          run: |
+            docker build -t ${{ env.docker_username }}/frontend:${GIT_COMMIT} ./frontend
+            docker push ${{ env.docker_username }}/frontend:${GIT_COMMIT}
+        - name: Build and Push backend Docker Image
+          run: |
+            docker build -t ${{ env.docker_username }}/backend:${GIT_COMMIT} ./backend
+            docker push ${{ env.docker_username }}/backend:${GIT_COMMIT}
 
